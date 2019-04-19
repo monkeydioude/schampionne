@@ -34,7 +34,7 @@ func (c *Client) Close() {
 
 }
 
-// Whisper fires a Rumor through Schampionne network.
+// Whisper fires a Rumor through the gRPC network.
 // t (type) string is used as identifier and source for listeners inside the network
 // m (message) string contains data sent through the network along the Type
 // returns an acknoledgment (Ack). Best case should returb ACK_OK code
@@ -52,7 +52,7 @@ func (c *Client) Whisper(t, m string) (*Ack, error) {
 	})
 }
 
-// WhisperRumor sends a rumor through Schampionne network.
+// WhisperRumor sends a rumor through the gRPC network.
 func (c *Client) WhisperRumor(r *Rumor) (*Ack, error) {
 	log.Printf("[INFO] Sending Rumor %+v\n", r)
 	return c.grpc.Whisper(context.Background(), r)
@@ -60,4 +60,19 @@ func (c *Client) WhisperRumor(r *Rumor) (*Ack, error) {
 
 func (a *Ack) Error() string {
 	return fmt.Sprintf("Code: %d, Message: %s", a.Code, a.Message)
+}
+
+// Listen starts listening to the gRPC network and wait for any message of the provided eventType.
+// Should be used in a goroutine
+func (c *Client) Listen(eventType string, middleware func(*BrokerClient, *Rumor, error) error) error {
+	listener := &Listener{Type: eventType}
+	stream, err := c.grpc.Listen(context.Background())
+
+	for {
+		rumor, err := stream.Recv()
+
+		if err := middleware(c, rumor, err); err != nil {
+			return err
+		}
+	}
 }
